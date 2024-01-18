@@ -5,14 +5,14 @@ const pool = new Pool({
     password:"Azmidou",
     host:"localhost",
     port:"5432",
-    databse :"postgres"
+    database :"test"
 });
 pool.connect((err)=>{
     if(err){
-        console.log(err);
+    console.log(err)
     }
     else{
-        console.log("data base connected");
+       console.log("data base connected");
     }
 })
 module.exports=pool;
