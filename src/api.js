@@ -12,19 +12,13 @@ app.use(express.json()); // For JSON data
 
 
 const router = express.Router();
-const { Send, getMail,createTable } = require('../controller/appController.js');
+const { Send, getMail,addService,getService,addBlog,getBlogs } = require('../controller/appController.js');
 router.post('/sendEmail', Send);
 router.get('/getAllEmails', getMail);
-router.post('/createTable', async (req, res) => {
-    try {
-      await createTable();
-      res.status(200).json({ message: 'Table "emails" created successfully' });
-    } catch (error) {
-      console.error('Error creating table:', error);
-      res.status(500).json({ error: 'Internal Server Error' });
-    }
-  });
-
+router.post('/addService', addService);
+router.get('/getService', getService);
+router.post('/addBlog', addBlog);
+router.get('/getBlog', getBlogs);
 app.use('/.netlify/functions/api', router);
 
 // Close the database connection when the app shuts down

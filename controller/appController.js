@@ -26,6 +26,28 @@ const createTable = async () => {
     await client.end();
   }
 };
+const createServicesTable = async () => {
+  const client = db.getClient();
+
+  try {
+    await client.connect();
+
+    const query = `
+      CREATE TABLE IF NOT EXISTS services (
+        id SERIAL PRIMARY KEY,
+        nom_du_service VARCHAR(255) NOT NULL,
+        description TEXT
+      );
+    `;
+
+    await client.query(query);
+    console.log('Table "services" created successfully');
+  } catch (error) {
+    console.error('Error creating "services" table:', error);
+  } finally {
+    await client.end();
+  }
+};
 
 const Send = async (req,res)=>{
     
@@ -109,9 +131,125 @@ const Send = async (req,res)=>{
       }
     }
   };
+  const addService = async (req, res) => {
+    const { nom_du_service, description } = req.body;
   
+    // Validate the request body
+    if (!nom_du_service || !description) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+  
+    const client = new Client({
+      connectionString: "postgresql://abdallah:lmv1Px24z_r8Mu4Sa7L6sA@crab-forager-8531.7tc.aws-eu-central-1.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full",
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    });
+  
+    try {
+      await client.connect();
+  
+      // Insert the new service into the "services" table
+      const insertQuery = `
+        INSERT INTO services (nom_du_service, description) VALUES ($1, $2) RETURNING id;
+      `;
+      const values = [nom_du_service, description];
+      const result = await client.query(insertQuery, values);
+  
+      console.log(`Service inserted with ID: ${result.rows[0].id}`);
+  
+      return res.status(201).json({
+        msg: 'Service added successfully',
+        serviceId: result.rows[0].id,
+      });
+    } catch (error) {
+      console.error('Error adding service:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
+  const getService = async (req, res) => {
+    const client = db.getClient();
+  
+    try {
+      await client.connect();
+  
+      const selectQuery = 'SELECT nom_du_service, description FROM services';
+      const result = await client.query(selectQuery);
+  
+      const serviceData = result.rows.map(row => ({
+        nom_du_service: row.nom_du_service,
+        description: row.description,
+      }));
+  
+      res.status(200).json({ serviceData });
+    } catch (error) {
+      console.error('Error retrieving services:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
+  const addBlog = async (req, res) => {
+    const { image, title, content } = req.body;
+  
+    // Validate the request body
+    if (!image || !title || !content) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+  
+    const client = db.getClient();
+  
+    try {
+      await client.connect();
+  
+      // Insert the new blog into the "blogs" table
+      const insertQuery = `
+        INSERT INTO blogs (image_data, title, content) VALUES ($1, $2, $3) RETURNING id;
+      `;
+      const values = [image, title, content];
+      const result = await client.query(insertQuery, values);
+  
+      console.log(`Blog added with ID: ${result.rows[0].id}`);
+  
+      return res.status(201).json({
+        msg: 'Blog added successfully',
+        blogId: result.rows[0].id,
+      });
+    } catch (error) {
+      console.error('Error adding blog:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
+  const getBlogs = async (req, res) => {
+    const client = db.getClient();
+  
+    try {
+      await client.connect();
+  
+      const selectQuery = 'SELECT title, image_data, content FROM blogs';
+      const result = await client.query(selectQuery);
+  
+      const blogPosts = result.rows.map(row => ({
+        name: row.title,
+        image: row.image_data,
+        content: row.content,
+      }));
+  
+      res.status(200).json({ blogPosts });
+    } catch (error) {
+      console.error('Error retrieving blog posts:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      // Use end() instead of release() if getClient() doesn't return a client with release()
+      await client.end();
+    }
+  };
   
 module.exports = {
-    Send,getMail,createTable
+    Send,getMail,addService,getService,addBlog,getBlogs
 }
 
