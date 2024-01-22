@@ -1,18 +1,45 @@
-
-
+const db = require('../db.js');
 const nodemailer = require('nodemailer');
-const pool = require('../db');
+const { Client } = require('pg');
+
+const createTable = async () => {
+ 
+    const client = db.getClient();
+
+  try {
+    await client.connect();
+
+    const query = `
+      CREATE TABLE IF NOT EXISTS emails (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        text TEXT NOT NULL,
+        subject VARCHAR(255) NOT NULL
+      );
+    `;
+
+    await client.query(query);
+    console.log('Table "emails" created successfully');
+  } catch (error) {
+    console.error('Error creating table:', error);
+  } finally {
+    await client.end();
+  }
+};
 
 const Send = async (req,res)=>{
-    console.log(req.body);
-    const {email,text,subject} = req.body
-    try{
-    const newEmail = await pool.query("INSERT INTO email (email, text, subject) VALUES ($1, $2, $3)",
-    [email,text,subject]);console.log(email,text,subject)}
     
-    catch(error){
-      console.log("this",error);
-    }
+    const {email,text,subject} = req.body
+    console.log(req.body)
+    const client = db.getClient();
+    try {
+      await client.connect();
+      const insertQuery = `
+        INSERT INTO emails (email, text, subject) VALUES ($1, $2, $3) RETURNING id;
+      `;
+      const values = [email, text, subject];
+      const result = await client.query(insertQuery, values);
+      console.log(`Email inserted with ID: ${result.rows[0].id}`);
     let testAccount = await nodemailer.createTestAccount();
     const transporter = nodemailer.createTransport({
         host: "smtp.ethereal.email",
@@ -37,16 +64,54 @@ const Send = async (req,res)=>{
       }).catch(error =>{
         return res.status(500).json({error});
       })
-}
-const getMail = async (req,res)=>{
-  const emails = await pool.query("SELECT * FROM email");
-  const emailData = [];
-  for (const row of emails.rows) {
-  emailData.push(`Email: ${row.email}----Subject: ${row.subject}----Text: ${row.text}\n\n`); // Adjust formatting as needed
-}
-  return res.status(201).json({emailData});
-}
+    } catch (error) {
+      console.error('Error inserting email details:', error);
+      res.status(500).json({ error: "Internal Server Error" });
+    } finally {
+      await client.end();
+    }
+  };
+
+  const getMail = async (req, res) => {
+    let client;
+    try {
+      // Create a new connection to the database for each request
+      client = new Client({
+        connectionString: "postgresql://abdallah:lmv1Px24z_r8Mu4Sa7L6sA@crab-forager-8531.7tc.aws-eu-central-1.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full",
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      });
+  
+      await client.connect();
+  
+      // Retrieve all emails from the "emails" table
+      const selectQuery = 'SELECT * FROM emails';
+      const result = await client.query(selectQuery);
+  
+      const emailData = result.rows.map(row => ({
+        email: row.email,
+        subject: row.subject,
+        text: row.text
+      }));
+  
+      res.status(200).json({ emailData });
+    } catch (error) {
+      console.error('Error retrieving emails:', error);
+      res.status(500).json({ error: "Internal Server Error" });
+    } finally {
+      if (client) {
+        try {
+          await client.end();
+        } catch (endError) {
+          console.error('Error closing the database connection:', endError);
+        }
+      }
+    }
+  };
+  
+  
 module.exports = {
-    Send,getMail
+    Send,getMail,createTable
 }
 

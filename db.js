@@ -1,18 +1,12 @@
-const Pool = require("pg").Pool;
+const { Client } = require('pg');
 
-const pool = new Pool({
-    user:"postgres",
-    password:"Azmidou",
-    host:"localhost",
-    port:"5432",
-    database :"test"
-});
-pool.connect((err)=>{
-    if(err){
-    console.log(err)
-    }
-    else{
-       console.log("data base connected");
-    }
-})
-module.exports=pool;
+const getClient = () => {
+  return new Client({
+    connectionString: "postgresql://abdallah:lmv1Px24z_r8Mu4Sa7L6sA@crab-forager-8531.7tc.aws-eu-central-1.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full",
+    ssl: {
+      rejectUnauthorized: false,
+    },
+  });
+};
+
+module.exports = { getClient };
