@@ -10,16 +10,16 @@ const createTable = async () => {
     await client.connect();
 
     const query = `
-      CREATE TABLE IF NOT EXISTS emails (
+     CREATE TABLE IF NOT EXISTS technologies (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
-        text TEXT NOT NULL,
-        subject VARCHAR(255) NOT NULL
+        image TEXT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL
       );
     `;
 
     await client.query(query);
-    console.log('Table "emails" created successfully');
+    console.log('Table "technologies" created successfully');
   } catch (error) {
     console.error('Error creating table:', error);
   } finally {
@@ -248,8 +248,53 @@ const Send = async (req,res)=>{
       await client.end();
     }
   };
+  const addTechno = async (req,res) => {
+    const client = db.getClient();
+    const {title, image, description}=req.body
+    try {
+      await client.connect();
   
+      const insertQuery = `
+        INSERT INTO technologies (title, image, description) VALUES ($1, $2, $3) RETURNING id;
+      `;
+      const values = [title, image, description];
+      const result = await client.query(insertQuery, values);
+  
+      console.log(`Technology added with ID: ${result.rows[0].id}`);
+  
+      res.status(201).json({
+        msg: 'Technology added successfully',
+        technologyId: result.rows[0].id,
+      });
+    } catch (error) {
+      console.error('Error adding technology:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
+  const getAllTechnos = async (req, res) => {
+    const client = db.getClient();
+  
+    try {
+      await client.connect();
+  
+      const query = `
+        SELECT * FROM technologies;
+      `;
+      const result = await client.query(query);
+  
+      const technologies = result.rows;
+  
+      res.status(200).json(technologies);
+    } catch (error) {
+      console.error('Error getting technologies:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
 module.exports = {
-    Send,getMail,addService,getService,addBlog,getBlogs
+    Send,getMail,addService,getService,addBlog,getBlogs,createTable,addTechno,getAllTechnos
 }
 

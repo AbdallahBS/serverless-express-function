@@ -12,13 +12,16 @@ app.use(express.json()); // For JSON data
 
 
 const router = express.Router();
-const { Send, getMail,addService,getService,addBlog,getBlogs } = require('../controller/appController.js');
+const { Send, getMail,addService,getService,addBlog,getBlogs,createTable,addTechno,getAllTechnos } = require('../controller/appController.js');
 router.post('/sendEmail', Send);
 router.get('/getAllEmails', getMail);
 router.post('/addService', addService);
 router.get('/getService', getService);
 router.post('/addBlog', addBlog);
 router.get('/getBlog', getBlogs);
+router.post('/createt',createTable);
+router.post('/addTechno',addTechno);
+router.get('/getTechno',getAllTechnos);
 app.use('/.netlify/functions/api', router);
 
 // Close the database connection when the app shuts down
@@ -32,6 +35,6 @@ process.on('SIGINT', async () => {
     process.exit(1);
   }
 });
-
+ 
 
 module.exports.handler = serverless(app);
