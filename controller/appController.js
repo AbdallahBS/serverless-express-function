@@ -10,16 +10,15 @@ const createTable = async () => {
     await client.connect();
 
     const query = `
-     CREATE TABLE IF NOT EXISTS technologies (
-        id SERIAL PRIMARY KEY,
-        image TEXT NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        description TEXT NOT NULL
-      );
+    CREATE TABLE IF NOT EXISTS faq (
+      id SERIAL PRIMARY KEY,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL
+    );
     `;
 
     await client.query(query);
-    console.log('Table "technologies" created successfully');
+    console.log('Table "faq" created successfully');
   } catch (error) {
     console.error('Error creating table:', error);
   } finally {
@@ -294,7 +293,53 @@ const Send = async (req,res)=>{
       await client.end();
     }
   };
+    const addQ = async (req,res) => {
+    const client = db.getClient();
+    const {question, answer}=req.body
+    try {
+      await client.connect();
+  
+      const insertQuery = `
+        INSERT INTO faq (question,answer) VALUES ($1, $2) RETURNING id;
+      `;
+      const values = [question, answer];
+      const result = await client.query(insertQuery, values);
+  
+      console.log(`faq added with ID: ${result.rows[0].id}`);
+  
+      res.status(201).json({
+        msg: 'question added successfully',
+        technologyId: result.rows[0].id,
+      });
+    } catch (error) {
+      console.error('Error adding question :', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
+  const getQ = async (req, res) => {
+    const client = db.getClient();
+  
+    try {
+      await client.connect();
+  
+      const query = `
+        SELECT * FROM faq;
+      `;
+      const result = await client.query(query);
+  
+      const faq = result.rows;
+  
+      res.status(200).json(faq);
+    } catch (error) {
+      console.error('Error getting faq:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      await client.end();
+    }
+  };
 module.exports = {
-    Send,getMail,addService,getService,addBlog,getBlogs,createTable,addTechno,getAllTechnos
+    Send,getMail,addService,getService,addBlog,getBlogs,createTable,addTechno,getAllTechnos,addQ,getQ
 }
 
