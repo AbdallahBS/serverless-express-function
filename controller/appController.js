@@ -1,24 +1,33 @@
 const db = require('../db.js');
 const nodemailer = require('nodemailer');
 const { Client } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 
 const createTable = async () => {
- 
+  console.log("runnnnn")
     const client = db.getClient();
 
   try {
     await client.connect();
 
-    const query = `
-    CREATE TABLE IF NOT EXISTS faq (
+    const query =`
+    CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
-      question TEXT NOT NULL,
-      answer TEXT NOT NULL
+      username VARCHAR(255),
+      password VARCHAR(255),
+      email VARCHAR(255),
+      firstname VARCHAR(255),
+      lastname VARCHAR(255),
+      mobile VARCHAR(20),
+      address TEXT,
+      profile TEXT
     );
     `;
 
     await client.query(query);
-    console.log('Table "faq" created successfully');
+    console.log('Table "users" created successfully');
   } catch (error) {
     console.error('Error creating table:', error);
   } finally {
@@ -111,9 +120,11 @@ const Send = async (req,res)=>{
       const result = await client.query(selectQuery);
   
       const emailData = result.rows.map(row => ({
+        id :row.id,
         email: row.email,
         subject: row.subject,
-        text: row.text
+        text: row.text,
+        time:row.published_at
       }));
   
       res.status(200).json({ emailData });
@@ -130,6 +141,48 @@ const Send = async (req,res)=>{
       }
     }
   };
+  const deleteMail = async (req, res) => {
+    const { id } = req.body;
+  
+    // Validate the request body
+    if (!id) {
+        return res.status(400).json({ error: 'Invalid request body' });
+    }
+  
+    const client = db.getClient();
+  
+    try {
+        await client.connect();
+  
+
+        const checkEmailQuery = 'SELECT * FROM emails WHERE id = $1;';
+        const checkEmailValues = [id];
+        const checkEmailResult = await client.query(checkEmailQuery, checkEmailValues);
+  
+        if (checkEmailResult.rows.length === 0) {
+            return res.status(404).json({ error: 'email not found' });
+        }
+  
+      
+        const deleteQuery = 'DELETE FROM emails WHERE id = $1 RETURNING id;';
+        const deleteValues = [id];
+        const deleteResult = await client.query(deleteQuery, deleteValues);
+  
+        console.log(`email deleted with ID: ${deleteResult.rows[0].id}`);
+  
+        return res.status(200).json({
+            msg: 'email deleted successfully',
+            id: deleteResult.rows[0].id,
+        });
+    } catch (error) {
+        console.error('Error deleting email:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        await client.end();
+    }
+  };
+
+  
   const addService = async (req, res) => {
     const { nom_du_service, description } = req.body;
   
@@ -229,10 +282,11 @@ const Send = async (req,res)=>{
     try {
       await client.connect();
   
-      const selectQuery = 'SELECT title, image_data, content FROM blogs';
+      const selectQuery = 'SELECT * FROM blogs';
       const result = await client.query(selectQuery);
   
       const blogPosts = result.rows.map(row => ({
+        id : row.id,
         name: row.title,
         image: row.image_data,
         content: row.content,
@@ -247,6 +301,99 @@ const Send = async (req,res)=>{
       await client.end();
     }
   };
+  const modifyBlog = async (req, res) => {
+    const { id, image, name, content } = req.body;
+   
+    console.log("hmmmm",id,name,content)
+    const blogId = id
+    // Validate the request body
+    if (!blogId || (!image && !name && content === undefined)) {
+        return res.status(400).json({ error: 'Invalid request body' });
+    }
+
+    const client = db.getClient();
+
+    try {
+        await client.connect();
+
+        // Check if the blog with the given ID exists
+        const checkBlogQuery = `
+            SELECT * FROM blogs WHERE id = $1;
+        `;
+        const checkBlogValues = [blogId];
+        const checkBlogResult = await client.query(checkBlogQuery, checkBlogValues);
+
+        if (checkBlogResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Blog not found' });
+        }
+
+        // Update the existing blog in the "blogs" table
+        const updateQuery = `
+            UPDATE blogs SET 
+                image_data = COALESCE($2, image_data),
+                title = COALESCE($3, title),
+                content = COALESCE($4, content)
+            WHERE id = $1
+            RETURNING id;
+        `;
+
+        const updateValues = [blogId, image, name, content];
+        const updateResult = await client.query(updateQuery, updateValues);
+
+        console.log(`Blog modified with ID: ${updateResult.rows[0].id}`);
+
+        return res.status(200).json({
+            msg: 'Blog modified successfully',
+            blogId: updateResult.rows[0].id,
+        });
+    } catch (error) {
+        console.error('Error modifying blog:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        await client.end();
+    }
+};
+const deleteBlog = async (req, res) => {
+  const { id } = req.body;
+  blogId=id;
+  console.log(id);
+  // Validate the request body
+  if (!blogId) {
+      return res.status(400).json({ error: 'Invalid request body' });
+  }
+
+  const client = db.getClient();
+
+  try {
+      await client.connect();
+
+      // Check if the blog with the given ID exists
+      const checkBlogQuery = 'SELECT * FROM blogs WHERE id = $1;';
+      const checkBlogValues = [blogId];
+      const checkBlogResult = await client.query(checkBlogQuery, checkBlogValues);
+
+      if (checkBlogResult.rows.length === 0) {
+          return res.status(404).json({ error: 'Blog not found' });
+      }
+
+      // Delete the blog from the "blogs" table
+      const deleteQuery = 'DELETE FROM blogs WHERE id = $1 RETURNING id;';
+      const deleteValues = [blogId];
+      const deleteResult = await client.query(deleteQuery, deleteValues);
+
+      console.log(`Blog deleted with ID: ${deleteResult.rows[0].id}`);
+
+      return res.status(200).json({
+          msg: 'Blog deleted successfully',
+          blogId: deleteResult.rows[0].id,
+      });
+  } catch (error) {
+      console.error('Error deleting blog:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+  } finally {
+      await client.end();
+  }
+};
   const addTechno = async (req,res) => {
     const client = db.getClient();
     const {title, image, description}=req.body
@@ -293,6 +440,94 @@ const Send = async (req,res)=>{
       await client.end();
     }
   };
+  const modifyTechno = async (req, res) => {
+    const { technoId, image,title, description } = req.body;
+    console.log(technoId,image,title, description)
+    // Validate the request body
+    if (!technoId || (!title && !description && !image)) {
+        return res.status(400).json({ error: 'Invalid request body' });
+    }
+
+    const client = db.getClient();
+
+    try {
+        await client.connect();
+
+        // Check if the technology with the given ID exists
+        const checkTechnoQuery = 'SELECT * FROM technologies WHERE id = $1;';
+        const checkTechnoValues = [technoId];
+        const checkTechnoResult = await client.query(checkTechnoQuery, checkTechnoValues);
+
+        if (checkTechnoResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Technology not found' });
+        }
+
+        // Update the existing technology in the "technologies" table
+        const updateQuery = `
+            UPDATE technologies SET 
+                title = COALESCE($2, title),
+                description = COALESCE($3, description),
+                image = COALESCE($4, image)
+            WHERE id = $1
+            RETURNING id;
+        `;
+
+        const updateValues = [technoId, title, description,image];
+        const updateResult = await client.query(updateQuery, updateValues);
+
+        console.log(`Technology modified with ID: ${updateResult.rows[0].id}`);
+
+        return res.status(200).json({
+            msg: 'Technology modified successfully',
+            technoId: updateResult.rows[0].id,
+        });
+    } catch (error) {
+        console.error('Error modifying technology:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+        await client.end();
+    }
+};
+const deleteTechno = async (req, res) => {
+  const { technoId } = req.body;
+
+  // Validate the request body
+  if (!technoId) {
+      return res.status(400).json({ error: 'Invalid request body' });
+  }
+
+  const client = db.getClient();
+
+  try {
+      await client.connect();
+
+      // Check if the technology with the given ID exists
+      const checkTechnoQuery = 'SELECT * FROM technologies WHERE id = $1;';
+      const checkTechnoValues = [technoId];
+      const checkTechnoResult = await client.query(checkTechnoQuery, checkTechnoValues);
+
+      if (checkTechnoResult.rows.length === 0) {
+          return res.status(404).json({ error: 'Technology not found' });
+      }
+
+      // Delete the technology from the "technologies" table
+      const deleteQuery = 'DELETE FROM technologies WHERE id = $1 RETURNING id;';
+      const deleteValues = [technoId];
+      const deleteResult = await client.query(deleteQuery, deleteValues);
+
+      console.log(`Technology deleted with ID: ${deleteResult.rows[0].id}`);
+
+      return res.status(200).json({
+          msg: 'Technology deleted successfully',
+          technoId: deleteResult.rows[0].id,
+      });
+  } catch (error) {
+      console.error('Error deleting technology:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+  } finally {
+      await client.end();
+  }
+};
     const addQ = async (req,res) => {
     const client = db.getClient();
     const {question, answer}=req.body
@@ -339,7 +574,127 @@ const Send = async (req,res)=>{
       await client.end();
     }
   };
-module.exports = {
-    Send,getMail,addService,getService,addBlog,getBlogs,createTable,addTechno,getAllTechnos,addQ,getQ
+  
+const verifyUser = async (req,res,next)=>{
+  const client = db.getClient();
+  try{
+      await client.connect();
+      const {username} = req.method == "GET" ? req.query : req.body;
+  
+        const query = 'SELECT * FROM users WHERE username = $1';
+        const result = await client.query(query, [username]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).send({ error: "Can't find user" });
+        }
+        next();
+  }
+  catch(error){
+      return res.status(404).send({error : "Authentication Error"});
+  } finally {
+    await client.end();
+  }
 }
+
+const register = async(req,res)=>{
+  const client = db.getClient();
+  try {
+    await client.connect();
+      const { username, password, profile, email } = req.body;        
+
+      // check the existing user
+      const existingUsernameQuery = 'SELECT * FROM users WHERE username = $1';
+      const existingUsernameResult = await client.query(existingUsernameQuery, [username]);
+  
+      if (existingUsernameResult.rows.length > 0) {
+        return res.status(400).send({ error: "Please use a unique username" });
+      }
+
+// check for existing email
+const existingEmailQuery = 'SELECT * FROM users WHERE email = $1';
+const existingEmailResult = await client.query(existingEmailQuery, [email]);
+
+if (existingEmailResult.rows.length > 0) {
+  return res.status(400).send({ error: "Please use a unique email" });
+}
+
+//hashed password 
+const hashedPassword = await bcrypt.hash(password, 10);
+
+const createUserQuery = 'INSERT INTO users (username, password, profile, email) VALUES ($1, $2, $3, $4)';
+await client.query(createUserQuery, [username, hashedPassword, profile || '', email]);
+ return res.status(201).send({ msg: "User Registered Successfully" })
+
+  } catch (error) {
+      return res.status(500).send(error);
+  }
+}
+
+const login = async(req, res)=> {
+  const client = db.getClient();
+  const { username, password } = req.body;
+  console.log(username,password);
+  await client.connect();
+  try {
+    const result = await client.query('SELECT * FROM users WHERE username = $1', [username]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).send({ error: "Username not found" });
+    }
+      const user = result.rows[0];
+      const passwordCheck = await bcrypt.compare(password, user.password);
+
+      if (!passwordCheck) {
+          return res.status(400).send({ error: "Incorrect password" });
+      }
+      
+      // JWT token
+      const token = jwt.sign({
+          userid: user._id,
+          username: user.username
+      }, "it9R9xOW3hULK96NXLjyMSnS6c+UtSYb78JGYFGJPGE=", { expiresIn: "24h" });
+
+      return res.status(200).send({
+          msg: "Login successful",
+          username: user.username,
+          token
+      });
+  } catch (error) {
+      console.error('Error in login:', error);
+      return res.status(500).send({ error: "Internal Server Error" });
+  }
+}
+
+const getUser=async(req, res)=> {
+  const { username } = req.params;
+  const client = db.getClient();
+  try {
+    await client.connect();
+    console.log(username);
+      if (!username) {
+          return res.status(400).send({ error: "Invalid Username" });
+      }
+
+      const getUserQuery = 'SELECT * FROM users WHERE username = $1';
+      const getUserResult = await client.query(getUserQuery, [username]);
+  
+      if (getUserResult.rows.length === 0) {
+        return res.status(404).send({ error: "Couldn't find the user" });
+      }
+      console.log('user exist');
+      // Remove password from user
+      const { password, ...rest } = getUserResult.rows[0];
+
+      return res.status(200).send(rest);
+  } catch (error) {
+      console.error('Error in getUser:', error);
+      return res.status(500).send({ error: "Internal Server Error" });
+  }
+}
+
+module.exports = {
+  Send,getMail,deleteMail,addService,getService,addBlog,getBlogs,modifyBlog,deleteBlog,createTable,addTechno,getAllTechnos, modifyTechno,deleteTechno,addQ,getQ,register, verifyUser, login, getUser
+  
+}
+//getUser,verifyUser,login,register
 
